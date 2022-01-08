@@ -84,22 +84,25 @@ class VolumetricFusion{
                     float lambda = (intrinsics.inverse() * xdot).norm();
 
                     float Fnew = truncate((1 / lambda) * (CameraLocation - p).norm() - depthMap[(int)x[0]][(int)x[1]]);
-                    float Fold = F[i][j][k]; 
 
-                    Vector3f PixelRay = pose * intrinsicsInverse * xdot - CameraLocation;
-                    Vector3f CameraToPoint = (p - CameraLocation)
+                    if(Fnew != NULL){
+                        float Fold = F[i][j][k]; 
 
-                    float cosineAngle = (PixelRay * CameraToPoint) / (PixelRay.norm() * CameraToPoint.norm());
+                        Vector3f PixelRay = pose * intrinsicsInverse * xdot - CameraLocation;
+                        Vector3f CameraToPoint = (p - CameraLocation)
 
-                    float Wnew = cosineAngle / depthMap[(int)xdot[0]][(int)xdot[1]];
-                    float Wold = W[i][j][k];
+                        float cosineAngle = (PixelRay * CameraToPoint) / (PixelRay.norm() * CameraToPoint.norm());
 
-                    if(Fold == NULL) Fold = 0;
+                        float Wnew = cosineAngle / depthMap[(int)xdot[0]][(int)xdot[1]];
+                        float Wold = W[i][j][k];
+
+                        if(Fold == NULL) Fold = 0;
 
 
-                    F[i][j][k] = (Wold * Fold + Wnew * Fnew) / (Wold + Wnew);
+                        F[i][j][k] = (Wold * Fold + Wnew * Fnew) / (Wold + Wnew);
 
-                    W[i][j][k] = Wold + Wnew;
+                        W[i][j][k] = Wold + Wnew;
+                    }
 
                 }
             }
