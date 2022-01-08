@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CONFIGURATION_TYPES Debug Release CACHE TYPE INTERNAL FORCE -Who-dev)
 
 project(KinectFusion)
@@ -8,9 +8,8 @@ add_compile_options(-std=c++14 -Wall)
 set(LIBRARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Libs CACHE PATH "Path to lib folder")
 set(OpenCV_DIR ${LIBRARY_DIR}/OpenCV/lib/cmake/opencv4 CACHE PATH "Path to installed Opencv")
 set(Eigen3_DIR ${LIBRARY_DIR}/Eigen/share/eigen3/cmake/ CACHE PATH "Path to installed Eigen")
-set(glog_DIR ${LIBRARY_DIR}/glog-lib/lib/cmake/glog CACHE PATH "Path to installed glog")
-set(Ceres_DIR ${LIBRARY_DIR}/Ceres/lib/cmake/Ceres CACHE PATH "Path to installed Ceres")
-set(Flann_INCLUDE_DIR ${LIBRARY_DIR}/Flann-1.8.4/ CACHE PATH "Path to Flann source folder")
+
+
 
 find_package(Ceres REQUIRED)
 find_package(glog REQUIRED)
