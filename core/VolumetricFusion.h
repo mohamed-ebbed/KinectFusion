@@ -23,6 +23,7 @@ class VolumetricFusion{
     public:
 
     VolumetricFusion(int grid_size, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z, float truncation, Matrix3f intrinsics){
+
         this->grid_size= grid_size;
         this->truncation = truncation
         this->min_x = min_x;
@@ -92,6 +93,8 @@ class VolumetricFusion{
 
                     float Wnew = cosineAngle / depthMap[(int)xdot[0]][(int)xdot[1]];
                     float Wold = W[i][j][k];
+
+                    if(Fold == NULL) Fold = 0;
 
 
                     F[i][j][k] = (Wold * Fold + Wnew * Fnew) / (Wold + Wnew);
