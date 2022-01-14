@@ -31,6 +31,7 @@ PS. Even though opencv is installed, I can't plot anything. Internet forums sugg
 
 So, in CMAKE: 
 
+- WITH_GTK (also WITH_GTK2.0 ?)  (checked)
 - WITH_CUDA (checked)
 - OPENCV_DNN_CUDA (checked)
 - BUILD_OPENCV_DNN (checked)
@@ -41,3 +42,6 @@ So, in CMAKE:
 - cuda_fast_math  (checked)
 - cuda_Arch_bin - 7.5 (which found yours here: https://en.wikipedia.org/wiki/CUDA)
 
+
+
+#### NOTE: Add variable -DWITH_GTK=ON to cmake options! 
