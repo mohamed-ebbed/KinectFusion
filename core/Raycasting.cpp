@@ -5,7 +5,7 @@
 #include "Raycasting.h"
 
 Raycasting::Raycasting() {
-
+    
 }
 
 //Brings a pixel from current depth camera image to 3D camera world, and then brings that point into
@@ -51,7 +51,7 @@ void Raycasting::ProcessSDF(float ***tsdf, Matrix4f extrinsics, Matrix4f intrins
                 valueAtRc = tsdf[(int)round(currentPos.x())][(int)round(currentPos.y())][(int)round(currentPos.z())];
                 if((valueAtRc == 1 || valueAtRc > currentSign) && currentPos.norm() < maxDepth){
                     currentPos += unitRay;
-                    previousValueAtRc = valueAtRc;
+                    previousValueAtRc = valueAtRc;  
                 } else {
                     notCrossed = false;
                 }

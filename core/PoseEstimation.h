@@ -108,6 +108,7 @@ public:
                     Vector3f glob_normal = global_normals.block(vertex,0, 1,3);
                     Vector3f glob_prevVertex = global_prevVertices.block(vertex, 0, 1, 3);
                     Vector3f glob_prevNormal = global_prevNormals.block(vertex,0, 1,3);
+
                     //calculate A and b from G N and V matrices
                     G = constructGmat(glob_vertex);
                     A = (G.transpose() * glob_prevNormal).transpose();
@@ -120,7 +121,6 @@ public:
                     transformIncrement = convertPoseToMatrix(incrementPose);
 
                     // check validity of estimation
-
 
                     if (isValidEstimation) {
                         // update current transform matrix
