@@ -1,7 +1,6 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include <opencv2/core/cuda.hpp>
-#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include "VirtualSensor.h"
 //#include "PoseEstimation.h"
@@ -12,14 +11,13 @@
 using namespace std;
 using namespace cv;
 using namespace dnn;
-using namespace cuda;
 
 
 int main()
 {
 //    printCudaDeviceInfo(0);
     // Make sure this path points to the data folder
-    std::string filenameIn = "../Data/rgbd_dataset_freiburg1_xyz/";
+    std::string filenameIn = "../../Data/rgbd_dataset_freiburg1_xyz/";
     std::string filenameBaseOut = "mesh_";
 
     // load video
