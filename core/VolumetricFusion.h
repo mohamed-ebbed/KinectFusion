@@ -27,9 +27,6 @@ class VolumetricFusion{
     float depthmapHeight;
     float truncation;
     float grid_size;
-    Matrix3f intrinsicsInverse;
-    Matrix3f intrinsics;
-
     public:
 
     float*** getF(){
@@ -67,7 +64,7 @@ class VolumetricFusion{
     float truncate(float val){
         int sgn = (val >= 0) ? 1 : -1;
         if(val >= -truncation)
-            return fmin(1, val / truncation) * sgn * sgn;
+            return fmin(1, val / truncation) * sgn;
         else
             return truncation;
     }
@@ -77,37 +74,48 @@ class VolumetricFusion{
         float delta_y = (max_y - min_y) / grid_size;
         float delta_z = (max_z - min_z) / grid_size;
 
-        intrinsicsInverse = intrinsics.inverse();
+
+
+        Matrix3f intrinsicsInverse = instrinsics.inverse();
 
 
         Matrix4f poseInverse = pose.inverse();
-
-        int pixelIdx = -1;
 
 
         for (unsigned int i = 0; i < grid_size; i++) {
             for (unsigned int j = 0; j < grid_size; j++) {
                 for(unsigned int k = 0 ; k < grid_size; k++){
+
+
                     Vector4f p(min_x + i * delta_x , min_y + j * delta_y, min_z + k * delta_z, 1.0f);
                     Vector3f p3f = Vector3f(p(0),p(1),p(2));
 
+
+
                     Vector3f CameraLocation = pose.block(0,3,3,1);
 
-                    Vector4f x =  poseInverse * p;
-                    Vector3f x3f = intrinsics * Vector3f(x(0),x(1),x(2));
+                    Vector4f x =  pose * p;
+                    Vector3f x3f = instrinsics * Vector3f(x(0),x(1),x(2));
 
                     Vector3f xdot(floor(x3f[0] / x3f[2]), floor(x3f[1] / x3f[2]), 1);
 
+                    int currIdx = xdot[0] + xdot[1] * depthmapWidth;
+
                     if(xdot[0] < 0 || xdot[0] >= depthmapWidth || xdot[1] < 0 || xdot[1] >= depthmapHeight)
                         continue;
+                
 
-                    int currIdx = xdot[0] + xdot[1] * depthmapWidth;
                     float depthVal = depthMap[currIdx]; 
+
+
+                    if(validity[currIdx] == 0)
+                        continue;
+
 
                     float lambda = (intrinsicsInverse * xdot).norm();
                     float Fnew = (1/ lambda) * ((CameraLocation - p3f).norm()) - depthVal;
                     
-                    if(Fnew != MINF){
+                    if(Fnew != truncation){
 
                         float Fold = F[i][j][k];
 

@@ -19,12 +19,12 @@ int main()
 
         // ----------------   volumetric fusion -------------------
     int grid_size = 100;
-    float min_x = -50;
-    float max_x = 50;
-    float min_y = -50;
-    float max_y = 50;
-    float min_z = -50;
-    float max_z = 50;
+    float min_x = 0;
+    float max_x = 2;
+    float min_y = 0;
+    float max_y = 2;
+    float min_z = 0;
+    float max_z = 2;
 
     float trunc_val = 3.0f;
 
@@ -139,15 +139,13 @@ int main()
         cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, cpp_normals);
 
 
-    
+        volFusion->step(depthExtrinsics, depthMat, normals, vertex_validity, depthWidth, depthHeight, depthIntrinsics);
 
-        // volFusion->step(depthExtrinsics, depthMat, normals, vertex_validity, depthWidth, depthHeight, depthIntrinsics);
+        cout << "Finished volumetric fusion step" << endl;
 
-        // cout << "Finished volumetric fusion step" << endl;
+        raycasting->ProcessSDF(volFusion->getF(), depthExtrinsics, depthIntrinsics, predictedVertices, predictedNormals,depthWidth, depthHeight);
 
-        // raycasting->ProcessSDF(volFusion->getF(), depthExtrinsics, depthIntrinsics, predictedVertices, predictedNormals,depthWidth, depthHeight);
-
-        // cout << "Finished raycasting fusion step" << endl;
+        cout << "Finished raycasting fusion step" << endl;
 
 
         // -------------------------------------------------------- s
@@ -164,7 +162,7 @@ int main()
 //        break;
         delete[] vertices;
         delete[] normals;
-        delete volFusion;
+        //delete volFusion;
     }
 
     return 0;
