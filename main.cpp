@@ -1,22 +1,42 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include <opencv2/core/cuda.hpp>
 #include <opencv2/cudaimgproc.hpp>
-
+#include <opencv2/core.hpp>
 #include "VirtualSensor.h"
 //#include "PoseEstimation.h"
 #include "core/VolumetricFusion.h"
 #include "core/declarations.h"
 #include <vector>
+#include "core/RaycastingSimple.h"
 
 using namespace std;
 using namespace cv;
-using namespace dnn;
 using namespace cuda;
 
 
 int main()
 {
+
+        // ----------------   volumetric fusion -------------------
+    int grid_size = 100;
+    float min_x = -50;
+    float max_x = 50;
+    float min_y = -50;
+    float max_y = 50;
+    float min_z = -50;
+    float max_z = 50;
+
+    float trunc_val = 3.0f;
+
+    float minDepth = 0.0f;
+    float maxDepth = 1;
+
+
+    VolumetricFusion* volFusion = new VolumetricFusion(grid_size, min_x, max_x, min_y, max_y,min_z, max_z,
+                                   trunc_val);
+
+    Raycasting* raycasting = new Raycasting(minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z, trunc_val, grid_size);
+
 //    printCudaDeviceInfo(0);
     // Make sure this path points to the data folder
     std::string filenameIn = "../Data/rgbd_dataset_freiburg1_xyz/";
@@ -89,6 +109,9 @@ int main()
         unsigned int numVertices = depthWidth*depthHeight;
         float cpp_normals[numVertices][3];
 
+        Vector3f* predictedNormals = new Vector3f[depthWidth*depthHeight];
+        Vector3f* predictedVertices = new Vector3f[depthWidth*depthHeight];
+
         unsigned int curr_idx = -1;
          for(unsigned int v = 1; v < depthHeight-1; v++) {
              for (unsigned int u = 1; u < depthWidth-1 ; u++) {
@@ -107,32 +130,32 @@ int main()
          }
 
         for (unsigned int i = 0; i < numVertices; i++) {
-//            normals[i].val(0) = (normals[i].val(0) + 1.0f) / 2.0f;
-//            normals[i].val(1) = (normals[i].val(1) + 1.0f) / 2.0f;
-//            normals[i].val(2) = (normals[i].val(2) + 1.0f) / 2.0f;
+
             cpp_normals[i][0] = normals[i].val(0);
             cpp_normals[i][1] = normals[i].val(1);
             cpp_normals[i][2] = normals[i].val(2);
         }
+
         cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, cpp_normals);
 
-        // ----------------   volumetric fusion -------------------
-        int grid_size = 256;
-        float x_dist = 1;
-        float y_dist = 1;
-        float z_dist = 0.0f;
-        float trunc_val = 5.0f;
 
-        VolumetricFusion* volFusion = new VolumetricFusion(grid_size, -x_dist,x_dist, -y_dist, y_dist,-z_dist, 10.0f,
-                                   trunc_val, depthIntrinsics, depthWidth, depthHeight);
-        volFusion->step(depthExtrinsics, depthMat, normals, vertex_validity);
-        break;
+    
+
+        // volFusion->step(depthExtrinsics, depthMat, normals, vertex_validity, depthWidth, depthHeight, depthIntrinsics);
+
+        // cout << "Finished volumetric fusion step" << endl;
+
+        // raycasting->ProcessSDF(volFusion->getF(), depthExtrinsics, depthIntrinsics, predictedVertices, predictedNormals,depthWidth, depthHeight);
+
+        // cout << "Finished raycasting fusion step" << endl;
+
+
         // -------------------------------------------------------- s
 
 //         sensor_frame += 1;
 //         if (sensor_frame == 1) {
-             cv::imshow("Depth Map", depth_mat);
- //            cv::imshow("Filtered Depth Map", filt_depth_mat);
+//            cv::imshow("Depth Map", depth_mat);
+//            cv::imshow("Filtered Depth Map", filt_depth_mat);
 //             cv::imshow("Normals Map", normalsMap_Vis);
 //             waitKey(0);
 //             break;
