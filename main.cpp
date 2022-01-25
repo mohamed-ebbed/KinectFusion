@@ -18,7 +18,7 @@ int main()
 {
 
         // ----------------   volumetric fusion -------------------
-    int grid_size = 512;
+    int grid_size = 256;
     float min_x = -2;
     float max_x = 2;
     float min_y = -2;
@@ -112,6 +112,8 @@ int main()
 
         Vector3f* predictedNormals = new Vector3f[depthWidth*depthHeight];
         Vector3f* predictedVertices = new Vector3f[depthWidth*depthHeight];
+        float* phongSurface = new float[depthWidth*depthHeight];
+
 
         unsigned int curr_idx = -1;
          for(unsigned int v = 1; v < depthHeight-1; v++) {
@@ -137,7 +139,7 @@ int main()
 
         cout << "Finished volumetric fusion step" << endl;
 
-        raycasting->ProcessSDF(volFusion->getF(), depthExtrinsics, depthIntrinsics, predictedVertices, predictedNormals,depthWidth, depthHeight);
+        raycasting->ProcessSDF(volFusion->getF(), depthExtrinsics, depthIntrinsics, predictedVertices, predictedNormals,depthWidth, depthHeight, phongSurface);
 
         cout << "Finished raycasting fusion step" << endl;
 
@@ -150,9 +152,11 @@ int main()
 
         cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, cpp_normals);
 
-
+        cv::Mat phong_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface);
 
         cv::imshow("PredictedNormals Map", normalsMap_Vis);
+        cv::imshow("Phong Surface", phong_mat);
+
         waitKey(0);
 
 

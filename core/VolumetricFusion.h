@@ -104,10 +104,12 @@ class VolumetricFusion{
 
                     int currIdx = xdot[0] + xdot[1] * depthmapWidth;
 
+                    if(isnan(xdot[0]) || isnan(xdot[1]))
+                        continue;
+
                     if(xdot[0] < 0 || xdot[0] >= depthmapWidth || xdot[1] < 0 || xdot[1] >= depthmapHeight)
                         continue;
                 
-
                     float depthVal = depthMap[currIdx]; 
 
 
