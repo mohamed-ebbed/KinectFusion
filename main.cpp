@@ -18,18 +18,18 @@ int main()
 {
 
         // ----------------   volumetric fusion -------------------
-    int grid_size = 100;
-    float min_x = 0;
+    int grid_size = 512;
+    float min_x = -2;
     float max_x = 2;
-    float min_y = 0;
+    float min_y = -2;
     float max_y = 2;
-    float min_z = 0;
+    float min_z = -2;
     float max_z = 2;
 
     float trunc_val = 3.0f;
 
-    float minDepth = 0.0f;
-    float maxDepth = 1;
+    float minDepth = 0.1f;
+    float maxDepth = 1.5;
 
 
     VolumetricFusion* volFusion = new VolumetricFusion(grid_size, min_x, max_x, min_y, max_y,min_z, max_z,
@@ -109,6 +109,7 @@ int main()
         unsigned int numVertices = depthWidth*depthHeight;
         float cpp_normals[numVertices][3];
 
+
         Vector3f* predictedNormals = new Vector3f[depthWidth*depthHeight];
         Vector3f* predictedVertices = new Vector3f[depthWidth*depthHeight];
 
@@ -129,14 +130,7 @@ int main()
              }
          }
 
-        for (unsigned int i = 0; i < numVertices; i++) {
 
-            cpp_normals[i][0] = normals[i].val(0);
-            cpp_normals[i][1] = normals[i].val(1);
-            cpp_normals[i][2] = normals[i].val(2);
-        }
-
-        cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, cpp_normals);
 
 
         volFusion->step(depthExtrinsics, depthMat, normals, vertex_validity, depthWidth, depthHeight, depthIntrinsics);
@@ -147,22 +141,24 @@ int main()
 
         cout << "Finished raycasting fusion step" << endl;
 
+        for (unsigned int i = 0; i < numVertices; i++) {
 
-        // -------------------------------------------------------- s
+            cpp_normals[i][0] = predictedNormals[i][0];
+            cpp_normals[i][1] = predictedNormals[i][1];
+            cpp_normals[i][2] = predictedNormals[i][2];
+        }
 
-//         sensor_frame += 1;
-//         if (sensor_frame == 1) {
-//            cv::imshow("Depth Map", depth_mat);
-//            cv::imshow("Filtered Depth Map", filt_depth_mat);
-//             cv::imshow("Normals Map", normalsMap_Vis);
-//             waitKey(0);
-//             break;
-//         }
+        cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, cpp_normals);
 
-//        break;
-        delete[] vertices;
-        delete[] normals;
-        //delete volFusion;
+
+
+        cv::imshow("PredictedNormals Map", normalsMap_Vis);
+        waitKey(0);
+
+
+        // delete[] vertices;
+        // delete[] normals;
+        // //delete volFusion;
     }
 
     return 0;

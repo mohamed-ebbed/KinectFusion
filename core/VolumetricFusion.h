@@ -63,10 +63,10 @@ class VolumetricFusion{
 
     float truncate(float val){
         int sgn = (val >= 0) ? 1 : -1;
-        if(val >= -truncation)
-            return fmin(1, val / truncation) * sgn;
+        if(val >= -truncation && val <= truncation)
+            return fmin(1, val / truncation);
         else
-            return truncation;
+            return sgn*truncation;
     }
 
     void step(Matrix4f pose, float* depthMap, Normal normals[], int* validity, float depthmapWidth, float depthmapHeight, Matrix3f instrinsics){
@@ -81,6 +81,9 @@ class VolumetricFusion{
 
         Matrix4f poseInverse = pose.inverse();
 
+        int num_positives = 0;
+        int num_negatives = 0;
+
 
         for (unsigned int i = 0; i < grid_size; i++) {
             for (unsigned int j = 0; j < grid_size; j++) {
@@ -94,7 +97,7 @@ class VolumetricFusion{
 
                     Vector3f CameraLocation = pose.block(0,3,3,1);
 
-                    Vector4f x =  pose * p;
+                    Vector4f x =  poseInverse * p;
                     Vector3f x3f = instrinsics * Vector3f(x(0),x(1),x(2));
 
                     Vector3f xdot(floor(x3f[0] / x3f[2]), floor(x3f[1] / x3f[2]), 1);
@@ -113,7 +116,14 @@ class VolumetricFusion{
 
 
                     float lambda = (intrinsicsInverse * xdot).norm();
-                    float Fnew = (1/ lambda) * ((CameraLocation - p3f).norm()) - depthVal;
+                    float Fnew = depthVal - (1/ lambda) * ((CameraLocation - p3f).norm());
+
+                    if(Fnew > 0)
+                        num_positives += 1;
+                    else
+                        num_negatives += 1;
+
+                    Fnew = truncate(Fnew);
                     
                     if(Fnew != truncation){
 
@@ -128,11 +138,11 @@ class VolumetricFusion{
 
                         W[i][j][k] = Wold + Wnew;
 
-
                     }
                 }
             }
         }
+        cout << num_positives << " " << num_negatives << endl;
     }
 
     ~VolumetricFusion(){
