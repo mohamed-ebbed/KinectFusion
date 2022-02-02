@@ -5,32 +5,8 @@
 using namespace std;
 
 
-Raycasting::Raycasting(float minDepth, float maxDepth, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z, float truncation, float grid_size) {
 
-    this->minDepth = minDepth;
-    this->maxDepth = maxDepth;
-    this->min_x = min_x;
-    this->max_x = max_x;
-    this->min_y = min_y;
-    this->max_y = max_y;
-    this->min_z = min_z;
-    this->max_z = max_z;
-    this->truncation = truncation;
-    this->grid_size=grid_size;
-    
-}
-
-Vector3f Raycasting::mapToWorld(float x, float y, float depth, Matrix3f intrinsics, Matrix4f extrinsics) {
-    Eigen::Vector3f p_dehom(x , y , 1);
-    Eigen::Vector3f p_cam = depth * intrinsics.inverse() * p_dehom;
-    Eigen::Vector4f p_cam4f(p_cam[0], p_cam[1], p_cam[2], 1.0);
-    Eigen::Vector4f p_world = extrinsics * p_cam4f;
-    Eigen::Vector3f result(p_world[0], p_world[1], p_world[2]);
-    return result;
-}
-
-
-void Raycasting::ProcessSDF(float*** tsdf, Matrix4f pose, Matrix3f intrinsics, Vector3f* surfacePoints, Vector3f* predictedNormals, int width, int height, float* phongSurface) {
+void Raycasting::ProcessSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vector3f* surfacePoints, Vector3f* predictedNormals, int width, int height, float* phongSurface) {
     int currIdx = -1;
 
     float min_x_observed = 10000;
@@ -74,8 +50,11 @@ void Raycasting::ProcessSDF(float*** tsdf, Matrix4f pose, Matrix3f intrinsics, V
             currIdx = c + r * width;
 
 
-            Vector3f pointRay = mapToWorld(c,r,currDepth,intrinsics,pose);
-
+            Eigen::Vector3f p_dehom(x , y , 1);
+            Eigen::Vector3f p_cam = depth * intrinsics.inverse() * p_dehom;
+            Eigen::Vector4f p_cam4f(p_cam[0], p_cam[1], p_cam[2], 1.0);
+            Eigen::Vector4f p_world = pose * p_cam4f;
+            Eigen::Vector3f result(p_world[0], p_world[1], p_world[2]);
 
 
             int i = floor(((pointRay[2] - min_z) / (max_z - min_z)) * (grid_size-1));
@@ -93,7 +72,14 @@ void Raycasting::ProcessSDF(float*** tsdf, Matrix4f pose, Matrix3f intrinsics, V
             max_y_observed = max(max_y_observed, pointRay[1]);
             max_z_observed = max(max_z_observed, pointRay[2]);
 
-            float currVal = tsdf[i][j][k];
+            int curr_sdf_pos = i * grid_size * grid_size + j * grid_size + k;
+
+            int fx_idx = (i+1) * grid_size * grid_size + j * grid_size + k;
+            int fy_idx = (i) * grid_size * grid_size + (j+1) * grid_size + k;
+            int fz_idx = (i) * grid_size * grid_size + j * grid_size + (k+1);
+
+
+            float currVal = tsdf[curr_sdf_pos];
 
 
             
@@ -118,9 +104,12 @@ void Raycasting::ProcessSDF(float*** tsdf, Matrix4f pose, Matrix3f intrinsics, V
             if(currVal == 0){
                 surfacePoints[currIdx] = pointRay;
                 num_hits += 1;
-                float fx = (tsdf[i+1][j][k] - currVal) / (delta_x);
-                float fy = (tsdf[i][j+1][k] - currVal) / (delta_y);
-                float fz = (tsdf[i][j][k+1] - currVal) / (delta_z);
+
+
+                float fx = (tsdf[fx_idx] - currVal) / (delta_x);
+                float fy = (tsdf[fy_idx] - currVal) / (delta_y);
+                float fz = (tsdf[fz_idx] - currVal) / (delta_z);
+
                 Vector3f normal(fx,fy,fz);
                 normal = normal / normal.norm();
                 Vector3f pointToCamera = CameraLocation - pointRay;
@@ -137,9 +126,10 @@ void Raycasting::ProcessSDF(float*** tsdf, Matrix4f pose, Matrix3f intrinsics, V
                 Vector3f delta = pointRay - prevPos;
                 Vector3f surface = pointRay - delta * (lastVal / (currVal + lastVal));
                 surfacePoints[currIdx] = surface;
-                float fx = (tsdf[i+1][j][k] - currVal) / (delta_x);
-                float fy = (tsdf[i][j+1][k] - currVal) / (delta_y);
-                float fz = (tsdf[i][j][k+1] - currVal) / (delta_z);
+                float fx = (tsdf[fx_idx] - currVal) / (delta_x);
+                float fy = (tsdf[fy_idx] - currVal) / (delta_y);
+                float fz = (tsdf[fz_idx] - currVal) / (delta_z);
+
                 Vector3f normal(fx,fy,fz);
                 normal = normal / normal.norm();
 

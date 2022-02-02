@@ -1,7 +1,10 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 set(CMAKE_CONFIGURATION_TYPES Debug Release CACHE TYPE INTERNAL FORCE -Who-dev)
 
-project(KinectFusion2)
+project(KinectFusion2 LANGUAGES CXX CUDA)
+enable_language(CUDA)
+
+
 
 set(CMAKE_CXX_STANDARD 14)
 
@@ -17,7 +20,6 @@ find_package(OpenCV)
 include_directories(preprocessing)
 set(SOURCE_FILES
     preprocessing/FreeImageHelper.cpp
-    core/RayCastingSimple.cpp
 )
 
 set(HEADER_FILES
@@ -27,11 +29,12 @@ set(HEADER_FILES
     preprocessing/FreeImageHelper.h
     core/PoseEstimation.h
     core/VolumetricFusion.h
-    core/RaycastingSimple.h
     core/declarations.h
 )
 
-add_executable(KinectFusion2 main.cpp ${HEADER_FILES} ${SOURCE_FILES})
+add_executable(KinectFusion2 main.cu ${HEADER_FILES} ${SOURCE_FILES})
+target_compile_features(KinectFusion2 PUBLIC cxx_std_14)
+set_target_properties(KinectFusion2 PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 link_directories(${FreeImage_LIBRARY_DIR})
 include_directories(${OpenCV_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIR} ${FreeImage_INCLUDE_DIR})
 target_link_libraries(KinectFusion2 freeimage Eigen3::Eigen ${OpenCV_LIBS})

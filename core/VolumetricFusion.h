@@ -12,154 +12,28 @@ using namespace Eigen;
 #define nullval  std::numeric_limits<float>::infinity();
 
 
-class VolumetricFusion{
-
-    float ***F;
-    float ***W;
-
-    float min_x;
-    float max_x;
-    float min_y;
-    float max_y;
-    float min_z;
-    float max_z;
-    float depthmapWidth;
-    float depthmapHeight;
-    float truncation;
-    float grid_size;
-    public:
-
-    float*** getF(){
-        return F;
-    }
-
-    VolumetricFusion(int grid_size, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z, float truncation){
-        this->grid_size= grid_size;
-        this->truncation = truncation;
-        this->min_x = min_x;
-        this->max_x = max_x;
-        this->min_y = min_y;
-        this->max_y = max_y;
-        this->min_z = min_z;
-        this->max_z = max_z;
-
-        W = new float**[grid_size];
-        F = new float**[grid_size];
-
-        for(int x = 0; x < grid_size; x++) {
-            F[x] = new float*[grid_size];
-            W[x] = new float*[grid_size];
-            for(int y = 0; y < grid_size; y++) {
-                F[x][y] = new float[grid_size];
-                W[x][y] = new float[grid_size];
-                for(int z = 0; z < grid_size; z++) { // initialize the values to whatever you want the default to be
-                    F[x][y][z] = truncation;
-                    W[x][y][z] = 0;
-                }
-            }
-        }
-        cout << "initalized arrays" << endl;
-    }
-
-    float truncate(float val){
-        int sgn = (val >= 0) ? 1 : -1;
-        if(val >= -truncation && val <= truncation)
-            return fmin(1, val / truncation);
-        else
-            return sgn*truncation;
-    }
-
-    void step(Matrix4f pose, float* depthMap, Normal normals[], int* validity, float depthmapWidth, float depthmapHeight, Matrix3f instrinsics){
-        float delta_x = (max_x - min_x) / grid_size;
-        float delta_y = (max_y - min_y) / grid_size;
-        float delta_z = (max_z - min_z) / grid_size;
+__global__ void computeNormals(Vertex* vertices, int* vertex_validity, Normal* normals, int depthWidth, int depthHeight){
 
 
+    int v = blockIdx.y * blockDim.y + threadIdx.y;
+    int u = blockIdx.x * blockDim.x + threadIdx.x;
 
-        Matrix3f intrinsicsInverse = instrinsics.inverse();
-
-
-        Matrix4f poseInverse = pose.inverse();
-
-        int num_positives = 0;
-        int num_negatives = 0;
+    unsigned int curr_idx = u + v * depthWidth;
 
 
-        for (unsigned int i = 0; i < grid_size; i++) {
-            for (unsigned int j = 0; j < grid_size; j++) {
-                for(unsigned int k = 0 ; k < grid_size; k++){
+    if(v >= depthHeight - 1 || u >= depthWidth - 1)
+        return;
 
+    
+    Vector3f v1, v2;
+    Vector3f vk = Vector3f(vertices[curr_idx].pos[0], vertices[curr_idx].pos[1], vertices[curr_idx].pos[2]);
+    Vector3f vk_right = Vector3f(vertices[curr_idx+1].pos[0], vertices[curr_idx+1].pos[1], vertices[curr_idx+1].pos[2]);
+    Vector3f vk_up = Vector3f(vertices[curr_idx+depthWidth].pos[0], vertices[curr_idx+depthWidth].pos[1], vertices[curr_idx+depthWidth].pos[2]);
 
-                    Vector4f p(min_x + k * delta_x , min_y + j * delta_y, min_z + i * delta_z, 1.0f);
-                    Vector3f p3f = Vector3f(p(0),p(1),p(2));
+    v1 = vk_right - vk;
+    v2 = vk_up - vk;
 
-
-
-                    Vector3f CameraLocation = pose.block(0,3,3,1);
-
-                    Vector4f x =  poseInverse * p;
-                    Vector3f x3f = instrinsics * Vector3f(x(0),x(1),x(2));
-
-                    Vector3f xdot(floor(x3f[0] / x3f[2]), floor(x3f[1] / x3f[2]), 1);
-
-                    int currIdx = xdot[0] + xdot[1] * depthmapWidth;
-
-                    if(isnan(xdot[0]) || isnan(xdot[1]))
-                        continue;
-
-                    if(xdot[0] < 0 || xdot[0] >= depthmapWidth || xdot[1] < 0 || xdot[1] >= depthmapHeight)
-                        continue;
-                
-                    float depthVal = depthMap[currIdx]; 
-
-
-                    if(validity[currIdx] == 0)
-                        continue;
-
-
-                    float lambda = (intrinsicsInverse * xdot).norm();
-                    float Fnew = depthVal - (1/ lambda) * ((CameraLocation - p3f).norm());
-
-                    if(Fnew > 0)
-                        num_positives += 1;
-                    else
-                        num_negatives += 1;
-
-                    Fnew = truncate(Fnew);
-                    
-                    if(Fnew != truncation){
-
-                        float Fold = F[i][j][k];
-
-                        Vector3f PixelRay = intrinsicsInverse * xdot;
-                        float Wnew = 1;
-
-                        float Wold = W[i][j][k];
-                        
-                        F[i][j][k] = (Wold * Fold + Wnew * Fnew) / (Wold + Wnew);
-
-                        W[i][j][k] = Wold + Wnew;
-
-                    }
-                }
-            }
-        }
-        cout << num_positives << " " << num_negatives << endl;
-    }
-
-    ~VolumetricFusion(){
-        for(int x = 0; x < grid_size; ++x) {
-            for(int y = 0; y < grid_size; ++y) {
-                delete [] F[x][y];
-                delete [] W[x][y];
-            }
-            delete [] F[x];
-            delete [] W[x];
-         }
-         delete [] F;
-         delete [] W;
-    }
-
-
-
-};
+    normals[curr_idx].val = v1.cross(v2);
+    normals[curr_idx].val.normalize();
+    
+}
