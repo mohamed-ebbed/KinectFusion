@@ -90,7 +90,7 @@ class VolumetricFusion{
                 for(unsigned int k = 0 ; k < grid_size; k++){
 
 
-                    Vector4f p(min_x + i * delta_x , min_y + j * delta_y, min_z + k * delta_z, 1.0f);
+                    Vector4f p(min_x + k * delta_x , min_y + j * delta_y, min_z + i * delta_z, 1.0f);
                     Vector3f p3f = Vector3f(p(0),p(1),p(2));
 
 

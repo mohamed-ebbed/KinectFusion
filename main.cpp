@@ -54,7 +54,10 @@ int main()
 
 
     int sensor_frame = 0;
+
+    Matrix4f initialPose;
     while(sensor.processNextFrame()) {
+        sensor_frame+= 1;
         float* depthMat = sensor.getDepth();
         unsigned int depthWidth = sensor.getDepthImageWidth();
         unsigned int depthHeight = sensor.getDepthImageHeight();
@@ -63,6 +66,9 @@ int main()
         Matrix3f depthIntrinsicsInv = depthIntrinsics.inverse();
 
         Matrix4f depthExtrinsics = sensor.getTrajectory();
+
+        if(sensor_frame == 1)
+            initialPose = depthExtrinsics;
         cout << depthExtrinsics << endl;
         // Matrix4f depthExtrinsicsInv = depthExtrinsics.inverse();
 
@@ -139,7 +145,7 @@ int main()
 
         cout << "Finished volumetric fusion step" << endl;
 
-        raycasting->ProcessSDF(volFusion->getF(), depthExtrinsics, depthIntrinsics, predictedVertices, predictedNormals,depthWidth, depthHeight, phongSurface);
+        raycasting->ProcessSDF(volFusion->getF(), initialPose, depthIntrinsics, predictedVertices, predictedNormals,depthWidth, depthHeight, phongSurface);
 
         cout << "Finished raycasting fusion step" << endl;
 
@@ -154,10 +160,14 @@ int main()
 
         cv::Mat phong_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface);
 
-        cv::imshow("PredictedNormals Map", normalsMap_Vis);
-        cv::imshow("Phong Surface", phong_mat);
+        if(sensor_frame % 10 == 0){
 
-        waitKey(0);
+            cv::imshow("PredictedNormals Map", normalsMap_Vis);
+            cv::imshow("Phong Surface", phong_mat);
+
+
+            waitKey(0);
+        }
 
 
         // delete[] vertices;
