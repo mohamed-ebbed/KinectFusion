@@ -9,9 +9,21 @@
 #include "Eigen.h"
 
 class Raycasting {
+    float minDepth;
+    float maxDepth;
+    float min_x;
+    float max_x;
+    float min_y;
+    float max_y;
+    float min_z;
+    float max_z;
+    float truncation;
+    float grid_size;
+
 public:
-    Raycasting(int width, int height);
-    void ProcessSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics);
+    Raycasting(float minDepth, float maxDepth, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z, float truncation, float grid_size);
+    Vector3f mapToWorld(float x, float y, float depth, Matrix3f intrinsics, Matrix4f extrinsics);
+    void ProcessSDF(float*** tsdf, Matrix4f pose, Matrix3f intrinsics, Vector3f* surfacePoints, Vector3f* predictedNormals, int width, int height, float* phongSurface);
 };
 
 

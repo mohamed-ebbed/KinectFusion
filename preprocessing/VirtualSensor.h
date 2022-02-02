@@ -201,8 +201,6 @@ private:
 
 			if (rot.norm() == 0) break;
 
-			transf = transf.inverse().eval();
-
 			timestamps.push_back(timestamp);
 			result.push_back(transf);
 		}
