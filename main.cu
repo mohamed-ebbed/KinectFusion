@@ -240,7 +240,7 @@ __global__ void updateTSDF(float* F, float* W, float* F_out, float* W_out, Matri
 
         float Wold = W[curr_sdf_pos];
 
-        float Wnew = Wold+1;
+        float Wnew = 1;
 
         
         F_out[curr_sdf_pos] = (Wold * Fold + Wnew * Fnew) / (Wold + Wnew);
@@ -253,7 +253,7 @@ __global__ void updateTSDF(float* F, float* W, float* F_out, float* W_out, Matri
 int main()
 {
     // ------------------ volumetric fusion -------------------
-    int grid_size = 512;
+    int grid_size = 256;
     float min_x = 0;
     float max_x = 2;
     float min_y = 0;
@@ -264,7 +264,7 @@ int main()
     float truncation = 1.0f;
 
     float minDepth = 0.1f;
-    float maxDepth = 1.5;
+    float maxDepth = 4.0;
 
 
     float* W = new float[grid_size*grid_size*grid_size];
@@ -273,7 +273,7 @@ int main()
     for(int x = 0; x < grid_size; x++) {
         for(int y = 0; y < grid_size; y++) {
             for(int z = 0; z < grid_size; z++) { // initialize the values to whatever you want the default to be
-                F[x * grid_size * grid_size + y * grid_size + z] = -1;
+                F[x * grid_size * grid_size + y * grid_size + z] = truncation;
                 W[x * grid_size * grid_size + y * grid_size + z] = 0;
             }
         }
@@ -284,7 +284,6 @@ int main()
     std::string filenameBaseOut = "mesh_";
 
     // load video
-    std::cout << "Initialize virtual sensor..." << std::endl;
     VirtualSensor sensor;
     if (!sensor.init(filenameIn)){
         std::cout << "Failed to initialize the sensor!\nCheck file path!" << std::endl;
@@ -303,8 +302,6 @@ int main()
         float* depthMat = sensor.getDepth();
         unsigned int depthWidth = sensor.getDepthImageWidth();
         unsigned int depthHeight = sensor.getDepthImageHeight();
-        std::cout << "width: " << depthWidth << std::endl;
-        std::cout << "height: " << depthHeight << std::endl;
 
         Matrix3f depthIntrinsics = sensor.getDepthIntrinsics();     // get K matrix (intrinsics), global to camera frame
         Matrix3f depthIntrinsicsInv = depthIntrinsics.inverse();
@@ -312,9 +309,9 @@ int main()
 
         Matrix4f depthExtrinsics = sensor.getTrajectory();
 
-        if(sensor_frame == 1)
+        if(sensor_frame == 1){
             initialPose = depthExtrinsics;
-        std::cout << depthExtrinsics << endl;
+        }
         Matrix4f depthExtrinsicsInv = depthExtrinsics.inverse();
 
         cv::Mat depth_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, depthMat);
@@ -330,6 +327,8 @@ int main()
         depth_map_g.upload(depth_mat);
         cv::cuda::bilateralFilter(depth_map_g, filt_depth_mat_g, 9, 75, 75, BORDER_DEFAULT); //max d val of 5 recommended for real-time applications (9 for offline)
         filt_depth_mat_g.download(filt_depth_mat);
+
+        depthMat = (float*) filt_depth_mat.data;
 
         int numVertices = depthHeight * depthWidth;
 
@@ -435,12 +434,10 @@ int main()
         cudaFree(depth_d);
         
         
-        cout << "Finished volumetric fusion step" << endl;
 
-        RenderTSDF<<<blocks,threads>>>(F_out_d, depthExtrinsics, depthIntrinsics,predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
+        RenderTSDF<<<blocks,threads>>>(F_out_d, initialPose, depthIntrinsics,predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
         cudaThreadSynchronize();
 
-        cout << "Finished raycasting fusion step" << endl;
 
         cudaMemcpy(phongSurface, phongSurface_d, numVertices*sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(predictedNormals, predictedNormals_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
@@ -460,11 +457,10 @@ int main()
         cv::Mat phong_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface);
 
 
-
         cv::imshow("Normal Map", normalsMap_Vis);
         cv::imshow("Phongsurface ", phong_mat);
 
-        waitKey(30);
+        waitKey(10);
         
 
 
