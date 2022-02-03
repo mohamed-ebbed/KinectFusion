@@ -3,7 +3,6 @@
 #include <opencv2/cudaimgproc.hpp>
 #include <opencv2/core.hpp>
 #include "VirtualSensor.h"
-#include "core/PoseEstimation.h"
 #include "core/VolumetricFusion.h"
 #include "core/declarations.h"
 #include <vector>
@@ -11,6 +10,97 @@
 using namespace std;
 using namespace cv;
 using namespace cuda;
+
+Matrix4f estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVertices, Vector3f* predictedNormals, int* vertex_validity, Matrix4f& previousPose, Matrix3f& intrinsics, float depthWidth, float depthHeight) {
+
+    MatrixXf curr_transform = previousPose;
+
+    for (int iter = 0; iter < 10; iter++) {
+        MatrixXf A = Eigen::Matrix<float, 6, 6>::Zero();
+        MatrixXf A_transpose = Eigen::Matrix<float, 6,6>::Zero();
+        MatrixXf b = Eigen::Matrix<float, 1, 1>::Zero();
+        MatrixXf ATA = Eigen::Matrix<float, 6,6>::Zero();
+        MatrixXf ATb = Eigen::Matrix<float, 6,1>::Zero();
+        MatrixXf previousPoseInv = previousPose.inverse();
+        MatrixXf pose;
+
+        //loop over pixels
+        for (int i = 0; i < depthHeight; i++) {
+            for (int j = 0; j < depthWidth; j++) {
+                int curr_idx = i * depthWidth + j;
+                if (vertex_validity[curr_idx] == 1) {
+                    Vertex Vg;
+                    Normal Ng;
+
+                    //calculate current normals and vertices
+                    Vg.pos = previousPose * vertices[i].pos;
+                    Ng.val = previousPose.block(0,0,3,3) * normals[i].val;
+
+                    //calculate prev normals and vertices
+                    Matrix4f frame_transform = previousPoseInv * curr_transform;
+                    Vector4f v_c = frame_transform * Vector4f(vertices[i].pos[0], vertices[i].pos[1], vertices[i].pos[2], 1);
+                    Vector3f v_c3d = Vector3f(v_c[0], v_c[1], v_c[2]);
+                    Vector3f u_hat = intrinsics * v_c3d;
+                    u_hat = Vector3f(u_hat[0] / u_hat[2], u_hat[1]/u_hat[2], 1.0f);
+
+                    int idx = u_hat[0] + u_hat[1] * depthWidth;
+
+                    if (predictedVertices[idx][0] == MINF) {
+                        continue;
+                    }
+                    if (predictedNormals[idx][0] == MINF) {
+                        continue;
+                    }
+
+
+                    MatrixXf G;
+                    G(0,0) = 0.0f;
+                    G(0,1) = -Vg.pos(2);
+                    G(0,2) = Vg.pos(1);
+                    G(1,0) = Vg.pos(2);
+                    G(1,1) = 0.0f;
+                    G(1,2) = -Vg.pos(0);
+                    G(2,0) = -Vg.pos(1);
+                    G(2,1) = Vg.pos(0);
+                    G(2,2) = 0.0f;
+
+                    G.block(0,3,3,3) = Matrix<float,3,3>::Identity();
+
+                    A_transpose = (G.transpose() * predictedNormals[idx]);
+                    A = A_transpose.transpose();
+                    b = predictedNormals[idx].transpose() * (predictedNormals[idx] - Vector3f(Vg.pos[0], Vg.pos[1], Vg.pos[2]));  // TODO num of prev vertices??
+
+                    ATA += A_transpose * A;
+                    ATb += A_transpose * b;
+                }
+            }
+        }
+        // solve for pose vector
+        pose = ATA.inverse() * ATb;
+        // convert pose vector to transform matrix
+        Matrix4f transfer_increment;
+
+        transfer_increment(0,0) = 1.0f;
+        transfer_increment(0,1) = pose(2);
+        transfer_increment(0,2) = -pose(1);
+        transfer_increment(0,3) = pose(3);
+
+        transfer_increment(1,0) = -pose(2);
+        transfer_increment(1,1) = 1.0f;
+        transfer_increment(1,2) = pose(0);
+        transfer_increment(1,3) = pose(4);
+
+        transfer_increment(2,0) = pose(1);
+        transfer_increment(2,1) = -pose(0);
+        transfer_increment(2,2) = 1.0f;
+        transfer_increment(2,3) = pose(5);
+        
+        curr_transform = pose * curr_transform;
+
+    }
+
+    return curr_transform;
+}
 
 __global__ void RenderTSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vector3f* surfacePoints, Vector3f* predictedNormals, int width, int height, float* phongSurface, float grid_size, float minDepth, float maxDepth, float min_x, float max_x, float min_y, float max_y, float min_z, float max_z) {
     
@@ -53,7 +143,6 @@ __global__ void RenderTSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vect
     while(currDepth <= maxDepth && notCrossed){
 
 
-
         currIdx = c + r * width;
 
 
@@ -66,9 +155,9 @@ __global__ void RenderTSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vect
 
 
 
-        int i = floor(((pointRay[2] - min_z) / (max_z - min_z)) * (grid_size-1));
-        int j = floor(((pointRay[1] - min_y) / (max_y - min_y)) * (grid_size-1));
-        int k = floor(((pointRay[0] - min_x) / (max_x - min_x)) * (grid_size-1));
+        int i = floor(((pointRay[1] - min_y) / (max_y - min_y)) * (grid_size-1));
+        int j = floor(((pointRay[0] - min_x) / (max_x - min_x)) * (grid_size-1));
+        int k = floor(((pointRay[2] - min_z) / (max_z - min_z)) * (grid_size-1));
 
 
 
@@ -76,12 +165,20 @@ __global__ void RenderTSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vect
         if(i < 0 || i >= grid_size || j < 0 || j >= grid_size || k < 0 || k >= grid_size)
             break;
 
+        
+
 
         int curr_sdf_pos = i * grid_size * grid_size + j * grid_size + k;
 
         int fx_idx = (i+1) * grid_size * grid_size + j * grid_size + k;
         int fy_idx = (i) * grid_size * grid_size + (j+1) * grid_size + k;
         int fz_idx = (i) * grid_size * grid_size + j * grid_size + (k+1);
+
+        int max_size= grid_size*grid_size*grid_size;
+
+        if(fx_idx < 0 || fx_idx >= max_size || fy_idx < 0 || fy_idx >= max_size || fz_idx < 0 || fz_idx >= max_size)
+            break;
+        
         
 
 
@@ -121,19 +218,26 @@ __global__ void RenderTSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vect
             Vector3f normal(fx,fy,fz);
             normal = normal / normal.norm();
             Vector3f pointToCamera = CameraLocation - pointRay;
+    
 
             pointToCamera.normalize();
 
             float light = pointToCamera.dot(normal);
+
+            Vector3f delta = pointRay - prevPos;
+            Vector3f surface = pointRay - delta * (lastVal / (currVal + lastVal));
+            surfacePoints[currIdx] = surface;
 
             predictedNormals[currIdx] = normal;
             phongSurface[currIdx] = light;
             break;
         } 
         else if(prevsign != currsgn){
+
             Vector3f delta = pointRay - prevPos;
             Vector3f surface = pointRay - delta * (lastVal / (currVal + lastVal));
             surfacePoints[currIdx] = surface;
+
             float fx = (tsdf[fx_idx] - currVal) / (delta_x);
             float fy = (tsdf[fy_idx] - currVal) / (delta_y);
             float fz = (tsdf[fz_idx] - currVal) / (delta_z);
@@ -150,7 +254,7 @@ __global__ void RenderTSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vect
             predictedNormals[currIdx] = normal;
             phongSurface[currIdx] = light;                
             num_hits += 1;
-            
+    
             break;
         }
         currDepth += step;
@@ -185,7 +289,7 @@ __global__ void updateTSDF(float* F, float* W, float* F_out, float* W_out, Matri
     F_out[curr_sdf_pos] = 1;
 
 
-    Vector4f p(min_x + k * delta_x , min_y + j * delta_y, min_z + i * delta_z, 1.0f);
+    Vector4f p(min_x + j * delta_x , min_y + i * delta_y, min_z + k * delta_z, 1.0f);
     Vector3f p3f = Vector3f(p(0),p(1),p(2));
 
     curr_sdf_pos = i * grid_size * grid_size + j * grid_size + k;
@@ -240,7 +344,7 @@ __global__ void updateTSDF(float* F, float* W, float* F_out, float* W_out, Matri
 
         float Wold = W[curr_sdf_pos];
 
-        float Wnew = Wold+1;
+        float Wnew = 1;
 
         
         F_out[curr_sdf_pos] = (Wold * Fold + Wnew * Fnew) / (Wold + Wnew);
@@ -252,19 +356,18 @@ __global__ void updateTSDF(float* F, float* W, float* F_out, float* W_out, Matri
 
 int main()
 {
-    // ------------------ volumetric fusion -------------------
-    int grid_size = 512;
-    float min_x = 0;
-    float max_x = 2;
-    float min_y = 0;
-    float max_y = 2;
-    float min_z = 0;
-    float max_z = 2;
+    int grid_size = 256;
+    float min_x = -1.5;
+    float max_x = 1.5;
+    float min_y = -1.5;
+    float max_y = 1.5;
+    float min_z = -1.5;
+    float max_z = 1.5;
 
-    float truncation = 1.0f;
+    float truncation = 5.0f;
 
-    float minDepth = 0.1f;
-    float maxDepth = 1.5;
+    float minDepth = 0.01f;
+    float maxDepth = 4.0;
 
 
     float* W = new float[grid_size*grid_size*grid_size];
@@ -273,7 +376,7 @@ int main()
     for(int x = 0; x < grid_size; x++) {
         for(int y = 0; y < grid_size; y++) {
             for(int z = 0; z < grid_size; z++) { // initialize the values to whatever you want the default to be
-                F[x * grid_size * grid_size + y * grid_size + z] = -1;
+                F[x * grid_size * grid_size + y * grid_size + z] = truncation;
                 W[x * grid_size * grid_size + y * grid_size + z] = 0;
             }
         }
@@ -284,7 +387,6 @@ int main()
     std::string filenameBaseOut = "mesh_";
 
     // load video
-    std::cout << "Initialize virtual sensor..." << std::endl;
     VirtualSensor sensor;
     if (!sensor.init(filenameIn)){
         std::cout << "Failed to initialize the sensor!\nCheck file path!" << std::endl;
@@ -293,29 +395,23 @@ int main()
         std::cout << "File Opened" << std::endl;
     }
 
-    PoseEstimation estimatePose;
-
     int sensor_frame = 0;
 
-    Matrix4f initialPose;
+    Matrix4f depthExtrinsics = Matrix4f::Identity();
+    Matrix4f depthExtrinsicsInv = depthExtrinsics;
+
+
+    Matrix4f initialPose = depthExtrinsics;
     while(sensor.processNextFrame()) {
         sensor_frame+= 1;
         float* depthMat = sensor.getDepth();
         unsigned int depthWidth = sensor.getDepthImageWidth();
         unsigned int depthHeight = sensor.getDepthImageHeight();
-        std::cout << "width: " << depthWidth << std::endl;
-        std::cout << "height: " << depthHeight << std::endl;
 
         Matrix3f depthIntrinsics = sensor.getDepthIntrinsics();     // get K matrix (intrinsics), global to camera frame
         Matrix3f depthIntrinsicsInv = depthIntrinsics.inverse();
         Matrix3f intrinsicsInv = depthIntrinsics.inverse();
 
-        Matrix4f depthExtrinsics = sensor.getTrajectory();
-
-        if(sensor_frame == 1)
-            initialPose = depthExtrinsics;
-        std::cout << depthExtrinsics << endl;
-        Matrix4f depthExtrinsicsInv = depthExtrinsics.inverse();
 
         cv::Mat depth_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, depthMat);
         cv::Mat filt_depth_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F);
@@ -330,6 +426,8 @@ int main()
         depth_map_g.upload(depth_mat);
         cv::cuda::bilateralFilter(depth_map_g, filt_depth_mat_g, 9, 75, 75, BORDER_DEFAULT); //max d val of 5 recommended for real-time applications (9 for offline)
         filt_depth_mat_g.download(filt_depth_mat);
+
+        depthMat = (float*) filt_depth_mat.data;
 
         int numVertices = depthHeight * depthWidth;
 
@@ -434,13 +532,10 @@ int main()
         cudaFree(vertex_validity_d);
         cudaFree(depth_d);
         
-        
-        cout << "Finished volumetric fusion step" << endl;
 
-        RenderTSDF<<<blocks,threads>>>(F_out_d, depthExtrinsics, depthIntrinsics,predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
+        RenderTSDF<<<blocks,threads>>>(F_out_d, initialPose, depthIntrinsics,predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
         cudaThreadSynchronize();
 
-        cout << "Finished raycasting fusion step" << endl;
 
         cudaMemcpy(phongSurface, phongSurface_d, numVertices*sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(predictedNormals, predictedNormals_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
@@ -460,11 +555,10 @@ int main()
         cv::Mat phong_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface);
 
 
-
         cv::imshow("Normal Map", normalsMap_Vis);
         cv::imshow("Phongsurface ", phong_mat);
 
-        waitKey(30);
+        waitKey(0);
         
 
 

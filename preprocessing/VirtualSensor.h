@@ -65,7 +65,6 @@ public:
 
 		if ((unsigned int)m_currentIdx >= (unsigned int)m_filenameColorImages.size()) return false;
 
-		std::cout << "ProcessNextFrame [" << m_currentIdx << " | " << m_filenameColorImages.size() << "]" << std::endl;
 
 		FreeImageB rgbImage;
 //        FreeImageIO rgbImage;
