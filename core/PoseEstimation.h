@@ -176,11 +176,11 @@ public:
         return poseVector;
     }
 
-//    Vector3f convertToGlobal(Vector4f& local_vec, Matrix4f& transform_mat) {
-//       Vector3f glob_vec;
-//       glob_vec = transform_mat * local_vec;
-//       return glob_vec;
-//    }
+   Vector3f convertToGlobal(Vector4f& local_vec, Matrix4f& transform_mat) {
+      Vector3f glob_vec;
+      glob_vec = transform_mat * local_vec;
+      return glob_vec;
+   }
 
     Vector3f calcGlobalNormal(Vector3f& local, Matrix4f& transform) {
 
@@ -214,63 +214,61 @@ public:
 
     void estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVertices, Vector3f* predictedNormals, Matrix4f& transform, Matrix3f& intrinsics) {
 
-//        for (int level = 0; level < pyramid_level; level++) {
-//            for (int iter = 0; iter < iters[level]; iter++) {
-//                MatrixXf A = Eigen::Matrix<float, 6, 6>::Zero();
-//                MatrixXf A_transpose = Eigen::Matrix<float, 6,6>::Zero();
-//                MatrixXf b = Eigen::Matrix<float, 6, 1>::Zero();
-//                MatrixXf ATA = Eigen::Matrix<float, 6,6>::Zero();
-//                MatrixXf ATb = Eigen::Matrix<float, 6,1>::Zero();
-//
-//                //loop over pixels
-//                for (int i = 0; i < depthHeight; i++) {
-//                    for (int j = 0; j < depthWidth; j++) {
-//                        int curr_idx = i * depthWidth + j;
-//                        if (vertex_validity[curr_idx] == 1) {
-//                            Vertex Vg;
-//                            Normal Ng;
-//
-//                            //calculate current normals and vertices
-//                            Vg.pos = convertToGlobal(vertices[i].pos,
-//                                                     transform_prev);     //current global vertices and normals.
-//                            Ng.val = calcGlobalNormal(normals[i].val, transform_prev);
-//
-//                            //calculate prev normals and vertices
-//                            Matrix4f frame_transform = transform_prev;
-//                            Vector3f u_hat = intrinsics * frame_transform * vertices[i].pos;
-//                            u_hat = Vector3f(u_hat[0] / u_hat[2], u_hat[1]/u_hat[2], 1.0f);
-//
-//                            int idx = u_hat[1] + u_hat[0] * depthWidth;
-//
-//                            if (predictedVertices[idx][0] == MINF) {
-//                                continue;
-//                            }
-//                            if (predictedNormals[idx][0] == MINF) {
-//                                continue;
-//                            }
-//
-//                            //TODO check validity here
-//
-//                            MatrixXf G = constructGmat(Vg);
-//                            A_transpose = (G.transpose() * predictedNormals[idx]);
-//                            A = A_transpose.transpose();
-//                            b = predsictedNormals[idx].transpose() * (predictedNormals[idx] - Vg.pos);  // TODO num of prev vertices??
-//
-//                            ATA += A_transpose * A;
-//                            ATb += A_transpose * b;
-//                        }
-//                    }
-//                }
-//                // solve for pose vector
-//                incrementPose = ATA.inverse() * ATb;
-//                // convert pose vector to transform matrix
-//                Matrix4f transform_increment_mat = convertPoseToMatrix(incrementPose);
-//                transform = transform_increment_mat * transform_prev;
-//
-//                //TODO check validity here?
-//
-//
-//            }
-//        }
+           for (int iter = 0; iter < iters[level]; iter++) {
+               MatrixXf A = Eigen::Matrix<float, 6, 6>::Zero();
+               MatrixXf A_transpose = Eigen::Matrix<float, 6,6>::Zero();
+               MatrixXf b = Eigen::Matrix<float, 6, 1>::Zero();
+               MatrixXf ATA = Eigen::Matrix<float, 6,6>::Zero();
+               MatrixXf ATb = Eigen::Matrix<float, 6,1>::Zero();
+
+               //loop over pixels
+               for (int i = 0; i < depthHeight; i++) {
+                   for (int j = 0; j < depthWidth; j++) {
+                       int curr_idx = i * depthWidth + j;
+                       if (vertex_validity[curr_idx] == 1) {
+                           Vertex Vg;
+                           Normal Ng;
+
+                           //calculate current normals and vertices
+                           Vg.pos = convertToGlobal(vertices[i].pos,
+                                                    transform_prev);     //current global vertices and normals.
+                           Ng.val = calcGlobalNormal(normals[i].val, transform_prev);
+
+                           //calculate prev normals and vertices
+                           Matrix4f frame_transform = transform_prev;
+                           Vector3f u_hat = intrinsics * frame_transform * vertices[i].pos;
+                           u_hat = Vector3f(u_hat[0] / u_hat[2], u_hat[1]/u_hat[2], 1.0f);
+
+                           int idx = u_hat[1] + u_hat[0] * depthWidth;
+
+                           if (predictedVertices[idx][0] == MINF) {
+                               continue;
+                           }
+                           if (predictedNormals[idx][0] == MINF) {
+                               continue;
+                           }
+
+                           //TODO check validity here
+
+                           MatrixXf G = constructGmat(Vg);
+                           A_transpose = (G.transpose() * predictedNormals[idx]);
+                           A = A_transpose.transpose();
+                           b = predsictedNormals[idx].transpose() * (predictedNormals[idx] - Vg.pos);  // TODO num of prev vertices??
+
+                           ATA += A_transpose * A;
+                           ATb += A_transpose * b;
+                       }
+                   }
+               }
+               // solve for pose vector
+               incrementPose = ATA.inverse() * ATb;
+               // convert pose vector to transform matrix
+               Matrix4f transform_increment_mat = convertPoseToMatrix(incrementPose);
+               transform = transform_increment_mat * transform_prev;
+
+               //TODO check validity here?
+
+
+           }
     }
 };

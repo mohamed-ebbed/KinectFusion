@@ -24,10 +24,9 @@ set(SOURCE_FILES
 
 set(HEADER_FILES
     preprocessing/VirtualSensor.h
-    preprocessing/Eigen.h
+    preprocessing/Eigen
     preprocessing/NearestNeighbor.h
     preprocessing/FreeImageHelper.h
-    core/PoseEstimation.h
     core/VolumetricFusion.h
     core/declarations.h
 )
