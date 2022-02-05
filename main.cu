@@ -14,14 +14,14 @@ using namespace cv;
 using namespace cuda;
 
 int grid_size = 256;
-float min_x = -3;
+float min_x = -2;
 float max_x = 2;
-float min_y = -3;
+float min_y = -2;
 float max_y = 2;
-float min_z = -3;
+float min_z = -2;
 float max_z = 2;
 
-float truncation = 1.0f;
+float truncation = 0.1f;
 
 float minDepth = 0.1f;
 float maxDepth = 3;
@@ -263,6 +263,8 @@ int main()
     Normal* normals_d;
 
     float* phongSurface_d;
+    float* phongSurface_curr_d;
+
 
     float* F_d;
     float* W_d;
@@ -270,6 +272,8 @@ int main()
 
     Vector3f* predictedNormals_d;
     Vector3f* predictedVertices_d;
+    Vector3f* predictedNormals_curr_d;
+
 
     float num_voxels = grid_size*grid_size*grid_size;
 
@@ -288,8 +292,11 @@ int main()
     cudaMalloc(&vertex_validity_d, numVertices*sizeof(int));
     cudaMalloc(&depth_d, numVertices*sizeof(float));
     cudaMalloc(&predictedNormals_d, numVertices*sizeof(Vector3f));
+    cudaMalloc(&predictedNormals_curr_d, numVertices*sizeof(Vector3f));
+
     cudaMalloc(&predictedVertices_d, numVertices*sizeof(Vector3f));
     cudaMalloc(&phongSurface_d, numVertices*sizeof(float));
+    cudaMalloc(&phongSurface_curr_d, numVertices*sizeof(float));
     
 
     cudaMemcpy(F_d, F, num_voxels*sizeof(float), cudaMemcpyHostToDevice);
@@ -330,16 +337,12 @@ int main()
         cv::cuda::bilateralFilter(depth_map_g, filt_depth_mat_g, 9, 9, 0, BORDER_DEFAULT); //max d val of 5 recommended for real-time applications (9 for offline)
         filt_depth_mat_g.download(filt_depth_mat);
 
-        //depthMat = (float*) filt_depth_mat.data;
 
 
         Vertex* vertices = new Vertex[numVertices];
         Normal normals[640*480];
 
-        
-
-
-
+    
         int* vertex_validity = new int[numVertices];
 
 
@@ -373,26 +376,22 @@ int main()
         dim3 blocks((depthWidth+29) / 30, (depthHeight+29) / 30);
 
         computeNormals<<<blocks,threads>>>(vertices_d, vertex_validity_d, normals_d, depthWidth, depthHeight);
-        //fusion_step(F, W, depthExtrinsics, depthMat, vertex_validity, depthWidth, depthHeight, depthIntrinsics);
-    
-        // cudaFree(vertices_d);
-        // cudaFree(vertex_validity_d);
-
 
         float cpp_normals[numVertices][3];
 
         Vector3f* predictedNormals = new Vector3f[depthWidth*depthHeight];
         Vector3f* predictedVertices = new Vector3f[depthWidth*depthHeight];
         float* phongSurface = new float[depthWidth*depthHeight];
+        float* phongSurface_curr = new float[depthWidth*depthHeight];
 
 
         cudaMemcpy(vertex_validity_d, vertex_validity, numVertices*sizeof(int), cudaMemcpyHostToDevice);
-        cudaMemcpy(depth_d, depthMat, numVertices*sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(depth_d, (float*) filt_depth_mat.data, numVertices*sizeof(float), cudaMemcpyHostToDevice);
 
 
-        dim3 threads_tsdf(5,5,5);
+        dim3 threads_tsdf(10,10,10);
 
-        dim3 blocks_tsdf((grid_size+4) / 5, (grid_size+4) / 5, (grid_size+4) / 5);
+        dim3 blocks_tsdf((grid_size+9) / 5, (grid_size+9) / 5, (grid_size+9) / 5);
 
         updateTSDF<<<blocks_tsdf, threads_tsdf>>>(F_d, W_d, depthExtrinsics, depthExtrinsicsInv, depth_d, normals_d, vertex_validity_d, depthWidth, depthHeight, depthIntrinsics, depthIntrinsicsInv, grid_size, truncation, min_x, max_x, min_y, max_y, min_z, max_z);
 
@@ -402,8 +401,12 @@ int main()
         RenderTSDF<<<blocks,threads>>>(F_d, initialPose, depthIntrinsics,predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
         cudaDeviceSynchronize();
 
+        RenderTSDF<<<blocks,threads>>>(F_d, depthExtrinsics, depthIntrinsics,predictedVertices_d, predictedNormals_curr_d, depthWidth, depthHeight, phongSurface_curr_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
+        cudaDeviceSynchronize();
+
 
         cudaMemcpy(phongSurface, phongSurface_d, numVertices*sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(phongSurface_curr, phongSurface_curr_d, numVertices*sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(predictedNormals, predictedNormals_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
         cudaMemcpy(predictedVertices, predictedVertices_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
         
@@ -416,10 +419,13 @@ int main()
 
         cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, predictedNormals);
         cv::Mat phong_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface);
+        cv::Mat phong_mat_curr = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface_curr);
 
 
         cv::imshow("Normal Map", normalsMap_Vis);
         cv::imshow("Phongsurface ", phong_mat);
+        cv::imshow("Phongsurface curr ", phong_mat_curr);
+
         cv::imshow("FilteredDepthMap ", filt_depth_mat);
         cv::imshow("InitialDepth ", depth_mat);
 

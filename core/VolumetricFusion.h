@@ -72,7 +72,7 @@ __global__ void updateTSDF(float* F, float* W, Matrix4f pose, Matrix4f poseInver
         float Fold = F[curr_tsdf_idx];
 
         Vector3f PixelRay = intrinsicsInverse * xdot;
-        float Wnew = 1 / depthVal;
+        float Wnew = 1 / (CameraLocation - p3f).norm();
 
         float Wold = W[curr_tsdf_idx];
         
