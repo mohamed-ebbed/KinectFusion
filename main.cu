@@ -14,11 +14,11 @@ using namespace cv;
 using namespace cuda;
 
 int grid_size = 256;
-float min_x = -2;
+float min_x = -3;
 float max_x = 2;
-float min_y = -2;
+float min_y = -3;
 float max_y = 2;
-float min_z = -2;
+float min_z = -3;
 float max_z = 2;
 
 float truncation = 1.0f;
@@ -99,7 +99,8 @@ void fusion_step(float* F, float* W, Matrix4f pose, float* depthMap, int* validi
                     float Fold = F[curr_tsdf_idx];
 
                     Vector3f PixelRay = intrinsicsInverse * xdot;
-                    float Wnew = 1;
+
+                    float Wnew = 1 / depthVal;
 
                     float Wold = W[curr_tsdf_idx];
                     
@@ -258,6 +259,41 @@ int main()
 
     int sensor_frame = 0;
 
+    Vertex* vertices_d;
+    Normal* normals_d;
+
+    float* phongSurface_d;
+
+    float* F_d;
+    float* W_d;
+    float* depth_d;
+
+    Vector3f* predictedNormals_d;
+    Vector3f* predictedVertices_d;
+
+    float num_voxels = grid_size*grid_size*grid_size;
+
+    int numVertices = 640*480;
+
+    int* vertex_validity_d;
+
+    cudaMalloc(&normals_d, numVertices*sizeof(Normal));
+    cudaMalloc(&vertices_d, numVertices*sizeof(Vertex));
+    cudaMalloc(&vertex_validity_d, numVertices*sizeof(int));
+
+
+    cudaMalloc(&F_d, num_voxels*sizeof(float));
+
+    cudaMalloc(&W_d, num_voxels*sizeof(float));
+    cudaMalloc(&vertex_validity_d, numVertices*sizeof(int));
+    cudaMalloc(&depth_d, numVertices*sizeof(float));
+    cudaMalloc(&predictedNormals_d, numVertices*sizeof(Vector3f));
+    cudaMalloc(&predictedVertices_d, numVertices*sizeof(Vector3f));
+    cudaMalloc(&phongSurface_d, numVertices*sizeof(float));
+    
+
+    cudaMemcpy(F_d, F, num_voxels*sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(W_d, W, num_voxels*sizeof(float), cudaMemcpyHostToDevice);
 
 
 
@@ -296,18 +332,15 @@ int main()
 
         //depthMat = (float*) filt_depth_mat.data;
 
-        int numVertices = depthHeight * depthWidth;
 
         Vertex* vertices = new Vertex[numVertices];
         Normal normals[640*480];
 
         
 
-        Vertex* vertices_d;
-        Normal* normals_d;
+
 
         int* vertex_validity = new int[numVertices];
-        int* vertex_validity_d;
 
 
 
@@ -332,24 +365,18 @@ int main()
             }
         }
 
-        cudaMalloc(&normals_d, numVertices*sizeof(Normal));
-        cudaMalloc(&vertices_d, numVertices*sizeof(Vertex));
-        cudaMalloc(&vertex_validity_d, numVertices*sizeof(int));
-
         cudaMemcpy(vertices_d, vertices, numVertices*sizeof(Vertex), cudaMemcpyHostToDevice);
         cudaMemcpy(vertex_validity_d, vertex_validity, numVertices*sizeof(int), cudaMemcpyHostToDevice);
 
-        
+ 
         dim3 threads(30,30);
         dim3 blocks((depthWidth+29) / 30, (depthHeight+29) / 30);
 
         computeNormals<<<blocks,threads>>>(vertices_d, vertex_validity_d, normals_d, depthWidth, depthHeight);
         //fusion_step(F, W, depthExtrinsics, depthMat, vertex_validity, depthWidth, depthHeight, depthIntrinsics);
-
-        cudaMemcpy(normals, normals_d, numVertices*sizeof(Normal), cudaMemcpyDeviceToHost);
     
-        cudaFree(vertices_d);
-        cudaFree(vertex_validity_d);
+        // cudaFree(vertices_d);
+        // cudaFree(vertex_validity_d);
 
 
         float cpp_normals[numVertices][3];
@@ -358,29 +385,7 @@ int main()
         Vector3f* predictedVertices = new Vector3f[depthWidth*depthHeight];
         float* phongSurface = new float[depthWidth*depthHeight];
 
-        Vector3f* predictedNormals_d;
-        Vector3f* predictedVertices_d;
 
-        float num_voxels = grid_size*grid_size*grid_size;
-
-        float* phongSurface_d;
-
-        float* F_d;
-        float* W_d;
-        float* depth_d;
-
-        cudaMalloc(&F_d, num_voxels*sizeof(float));
-
-        cudaMalloc(&W_d, num_voxels*sizeof(float));
-        cudaMalloc(&vertex_validity_d, numVertices*sizeof(int));
-        cudaMalloc(&depth_d, numVertices*sizeof(float));
-        cudaMalloc(&predictedNormals_d, numVertices*sizeof(Vector3f));
-        cudaMalloc(&predictedVertices_d, numVertices*sizeof(Vector3f));
-        cudaMalloc(&phongSurface_d, numVertices*sizeof(float));
-        
-
-        cudaMemcpy(F_d, F, num_voxels*sizeof(float), cudaMemcpyHostToDevice);
-        cudaMemcpy(W_d, W, num_voxels*sizeof(float), cudaMemcpyHostToDevice);
         cudaMemcpy(vertex_validity_d, vertex_validity, numVertices*sizeof(int), cudaMemcpyHostToDevice);
         cudaMemcpy(depth_d, depthMat, numVertices*sizeof(float), cudaMemcpyHostToDevice);
 
@@ -397,17 +402,10 @@ int main()
         RenderTSDF<<<blocks,threads>>>(F_d, initialPose, depthIntrinsics,predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
         cudaDeviceSynchronize();
 
-        cudaMemcpy(F, F_d, num_voxels*sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(W, W_d, num_voxels*sizeof(float), cudaMemcpyDeviceToHost);
 
         cudaMemcpy(phongSurface, phongSurface_d, numVertices*sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(predictedNormals, predictedNormals_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
         cudaMemcpy(predictedVertices, predictedVertices_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
-        cudaFree(phongSurface_d);
-        cudaFree(predictedNormals_d);
-        cudaFree(normals_d);
-        cudaFree(vertex_validity_d);
-        cudaFree(depth_d);
         
 
         for (unsigned int i = 0; i < numVertices; i++) {

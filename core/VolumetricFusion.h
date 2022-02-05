@@ -65,14 +65,14 @@ __global__ void updateTSDF(float* F, float* W, Matrix4f pose, Matrix4f poseInver
         else
             Fnew = Fnew / truncation;
     else
-        Fnew =  -100;
+        Fnew = -100;
     
     if(Fnew != -100){
 
         float Fold = F[curr_tsdf_idx];
 
         Vector3f PixelRay = intrinsicsInverse * xdot;
-        float Wnew = 1;
+        float Wnew = 1 / depthVal;
 
         float Wold = W[curr_tsdf_idx];
         
