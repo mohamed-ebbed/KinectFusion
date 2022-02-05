@@ -27,8 +27,10 @@ set(HEADER_FILES
     preprocessing/Eigen
     preprocessing/NearestNeighbor.h
     preprocessing/FreeImageHelper.h
-    core/VolumetricFusion.h
     core/declarations.h
+    core/VolumetricFusion.h
+    core/raycasting.h
+    core/preprocessing.h
 )
 
 add_executable(KinectFusion2 main.cu ${HEADER_FILES} ${SOURCE_FILES})
