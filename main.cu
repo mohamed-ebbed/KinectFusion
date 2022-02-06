@@ -375,7 +375,8 @@ int main()
         dim3 threads(30,30);
         dim3 blocks((depthWidth+29) / 30, (depthHeight+29) / 30);
 
-        computeNormals<<<blocks,threads>>>(vertices_d, vertex_validity_d, normals_d, depthWidth, depthHeight);
+        computeNormals<<<blocks,threads>>>(vertices_d, vertex_validity_d, normals_d, depthWidth, depthHeight, depthExtrinsics);
+        cudaMemcpy(normals, normals_d, numVertices*sizeof(Normal), cudaMemcpyDeviceToHost);
 
         float cpp_normals[numVertices][3];
 
@@ -387,6 +388,7 @@ int main()
 
         cudaMemcpy(vertex_validity_d, vertex_validity, numVertices*sizeof(int), cudaMemcpyHostToDevice);
         cudaMemcpy(depth_d, (float*) filt_depth_mat.data, numVertices*sizeof(float), cudaMemcpyHostToDevice);
+
 
 
         dim3 threads_tsdf(10,10,10);
@@ -418,11 +420,13 @@ int main()
         }
 
         cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, predictedNormals);
+        cv::Mat curr_normals = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, cpp_normals);
         cv::Mat phong_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface);
         cv::Mat phong_mat_curr = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface_curr);
 
 
         cv::imshow("Normal Map", normalsMap_Vis);
+        cv::imshow("Curr normals", curr_normals);
         cv::imshow("Phongsurface ", phong_mat);
         cv::imshow("Phongsurface curr ", phong_mat_curr);
 

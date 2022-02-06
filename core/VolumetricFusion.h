@@ -28,7 +28,7 @@ __global__ void updateTSDF(float* F, float* W, Matrix4f pose, Matrix4f poseInver
 
 
 
-    Vector4f p(min_x + i * delta_x , min_y + j * delta_y, min_z + k * delta_z, 1.0f);
+    Vector4f p(min_z + k * delta_z , min_y + j * delta_y, min_x + i * delta_x, 1.0f);
     Vector3f p3f = Vector3f(p(0),p(1),p(2));
 
 

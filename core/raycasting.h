@@ -62,9 +62,9 @@ __global__ void RenderTSDF(float* tsdf, Matrix4f pose, Matrix3f intrinsics, Vect
 
 
 
-        int i = floor(((pointRay[0] - min_x) / (max_x - min_x)) * (grid_size-1));
+        int i = floor(((pointRay[2] - min_z) / (max_z - min_z)) * (grid_size-1));
         int j = floor(((pointRay[1] - min_y) / (max_y - min_y)) * (grid_size-1));
-        int k = floor(((pointRay[2] - min_z) / (max_z - min_z)) * (grid_size-1));
+        int k = floor(((pointRay[0] - min_x) / (max_x - min_x)) * (grid_size-1));
 
 
 

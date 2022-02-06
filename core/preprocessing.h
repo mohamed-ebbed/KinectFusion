@@ -11,11 +11,13 @@ using namespace Eigen;
 
 
 
-__global__ void computeNormals(Vertex* vertices, int* vertex_validity, Normal* normals, int depthWidth, int depthHeight){
+__global__ void computeNormals(Vertex* vertices, int* vertex_validity, Normal* normals, int depthWidth, int depthHeight, Matrix4f depthExtrinsics){
 
 
     int v = blockIdx.y * blockDim.y + threadIdx.y;
     int u = blockIdx.x * blockDim.x + threadIdx.x;
+
+    Matrix3f rot = depthExtrinsics.block(0,0,3,3);
 
     unsigned int curr_idx = u + v * depthWidth;
 
@@ -33,6 +35,8 @@ __global__ void computeNormals(Vertex* vertices, int* vertex_validity, Normal* n
     v2 = vk_up - vk;
 
     normals[curr_idx].val = v1.cross(v2);
+    normals[curr_idx].val = rot * normals[curr_idx].val;
+
     normals[curr_idx].val.normalize();
     
 }
