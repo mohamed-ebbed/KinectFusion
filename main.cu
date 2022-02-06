@@ -128,7 +128,7 @@ Matrix4f estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVert
 
     MatrixXf curr_transform = previousPose;
 
-    for (int iter = 0; iter < 1; iter++) {
+    for (int iter = 0; iter < 5; iter++) {
 
         //loop over pixels
         for (int i = 0; i < depthHeight; i++) {
@@ -159,7 +159,7 @@ Matrix4f estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVert
                     }
 
                     float distance = (curr_transform * vertices[curr_idx].pos - predictedVertices[idx]).norm();
-                    if(distance >= 0.001)
+                    if(distance >= 0.01)
                         continue;
 
                     MatrixXf G = Eigen::Matrix<float, 6,6>::Zero();
@@ -244,6 +244,9 @@ int main()
     Matrix<float,4,4> previousPose;
 
     int sensor_frame = 0;
+
+    Vector3f* predictedNormals = new Vector3f[640*480];
+    Vector3f* predictedVertices = new Vector3f[640*480];
     while(sensor.processNextFrame()) {
         sensor_frame+= 1;
         float* depthMat = sensor.getDepth();
@@ -310,6 +313,8 @@ int main()
             }
         }
 
+
+
         cudaMalloc(&normals_d, numVertices*sizeof(Normal));
         cudaMalloc(&vertices_d, numVertices*sizeof(Vertex));
         cudaMalloc(&vertex_validity_d, numVertices*sizeof(int));
@@ -325,9 +330,26 @@ int main()
         cudaFree(vertices_d);
         cudaFree(vertex_validity_d);
 
+        if(sensor_frame != 1){
+            Matrix<float,4,4> currPose = estimatePose(vertices, normals, predictedVertices, predictedNormals, vertex_validity,
+            previousPose, depthIntrinsics, depthWidth, depthHeight);
 
-        Vector3f* predictedNormals = new Vector3f[depthWidth*depthHeight];
-        Vector3f* predictedVertices = new Vector3f[depthWidth*depthHeight];
+            depthExtrinsics = currPose;
+
+            cout << depthExtrinsics << endl;
+
+            depthExtrinsicsInv = depthExtrinsics.inverse();
+
+            delete[] predictedNormals;
+            delete[] predictedVertices;
+
+            predictedNormals = new Vector3f[640*480];
+            predictedVertices = new Vector3f[640*480];
+
+        }
+
+
+
         float* phongSurface = new float[depthWidth*depthHeight];
 
         Vector3f* predictedNormals_d;
@@ -365,7 +387,7 @@ int main()
         cudaDeviceSynchronize();
 
 
-        RenderTSDF<<<blocks,threads>>>(F_d, initialPose, depthIntrinsics,predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
+        RenderTSDF<<<blocks,threads>>>(F_d, depthExtrinsics, depthIntrinsics, predictedVertices_d, predictedNormals_d, depthWidth, depthHeight, phongSurface_d, grid_size, minDepth, maxDepth, min_x, max_x, min_y, max_y, min_z, max_z);
         cudaDeviceSynchronize();
 
         cudaMemcpy(F, F_d, num_voxels*sizeof(float), cudaMemcpyDeviceToHost);
@@ -381,11 +403,7 @@ int main()
         cudaFree(depth_d);
 
 
-        Matrix<float,4,4> currPose = estimatePose(vertices, normals, predictedVertices, predictedNormals, vertex_validity,
-                                         previousPose, depthIntrinsics, depthWidth, depthHeight);
 
-        depthExtrinsics = currPose;
-        depthExtrinsicsInv = depthExtrinsics.inverse();
 
 //        depthExtrinsics_cam = sensor.getTrajectory();
 //        cout << "Camera pose: "<< endl << depthExtrinsics_cam << endl;
