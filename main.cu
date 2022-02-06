@@ -391,7 +391,7 @@ int main()
 
         dim3 threads_tsdf(10,10,10);
 
-        dim3 blocks_tsdf((grid_size+9) / 5, (grid_size+9) / 5, (grid_size+9) / 5);
+        dim3 blocks_tsdf((grid_size+9) / 10, (grid_size+9) / 10, (grid_size+9) / 10);
 
         updateTSDF<<<blocks_tsdf, threads_tsdf>>>(F_d, W_d, depthExtrinsics, depthExtrinsicsInv, depth_d, normals_d, vertex_validity_d, depthWidth, depthHeight, depthIntrinsics, depthIntrinsicsInv, grid_size, truncation, min_x, max_x, min_y, max_y, min_z, max_z);
 
