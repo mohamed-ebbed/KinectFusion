@@ -17,12 +17,12 @@ using namespace cv;
 using namespace cuda;
 
 int grid_size = 256;
-float min_x = -2;
-float max_x = 2;
-float min_y = -2;
-float max_y = 2;
-float min_z = -2;
-float max_z = 2;
+float min_x = -1;
+float max_x = 3;
+float min_y = -1;
+float max_y = 3;
+float min_z = -1;
+float max_z = 3;
 
 float truncation = 1.0f;
 
@@ -128,7 +128,7 @@ Matrix4f estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVert
 
     MatrixXf curr_transform = previousPose;
 
-    for (int iter = 0; iter < 5; iter++) {
+    for (int iter = 0; iter < 1; iter++) {
 
         //loop over pixels
         for (int i = 0; i < depthHeight; i++) {
@@ -138,8 +138,8 @@ Matrix4f estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVert
                     Vertex Vg;
                     Normal Ng;
                     //calculate current normals and vertices
-                    Vg.pos = previousPose * vertices[curr_idx].pos;
-                    Ng.val = previousPose.block(0,0,3,3) * normals[curr_idx].val;
+                    Vg.pos = curr_transform * vertices[curr_idx].pos;
+                    Ng.val = curr_transform.block(0,0,3,3) * normals[curr_idx].val;
 
                     //calculate prev normals and vertices
                     Matrix4f frame_transform = previousPoseInv * curr_transform;
@@ -158,9 +158,18 @@ Matrix4f estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVert
                         continue;
                     }
 
+                    Matrix3f currRot = curr_transform.block(0,0,3,3);
+
                     float distance = (curr_transform * vertices[curr_idx].pos - predictedVertices[idx]).norm();
-                    if(distance >= 0.01)
+                    float normalSim = ((currRot * normals[curr_idx].val).dot(predictedNormals[idx]));
+
+                    if(isnan(normalSim) || isnan(distance))
                         continue;
+
+                    if(distance >= 0.005 || normalSim < 0.9){
+                        continue;
+                    }
+
 
                     MatrixXf G = Eigen::Matrix<float, 6,6>::Zero();
                     G(0,0) = 0.0f;
@@ -207,6 +216,8 @@ Matrix4f estimatePose(Vertex* vertices, Normal* normals, Vector3f* predictedVert
 //        cout << "calculated pose" << endl;
 //        cout << curr_transform << endl;
         curr_transform = transfer_increment * curr_transform;
+
+        cout << curr_transform << endl;
         
     }
     return curr_transform;
@@ -247,6 +258,8 @@ int main()
 
     Vector3f* predictedNormals = new Vector3f[640*480];
     Vector3f* predictedVertices = new Vector3f[640*480];
+    Matrix4f depthExtrinsics = Matrix4f::Identity();
+    Matrix4f depthExtrinsicsInv = Matrix4f::Identity();
     while(sensor.processNextFrame()) {
         sensor_frame+= 1;
         float* depthMat = sensor.getDepth();
@@ -256,14 +269,12 @@ int main()
         Matrix3f depthIntrinsics = sensor.getDepthIntrinsics();     // get K matrix (intrinsics), global to camera frame
         Matrix3f depthIntrinsicsInv = depthIntrinsics.inverse();
         Matrix3f intrinsicsInv = depthIntrinsics.inverse();
-        Matrix4f depthExtrinsics;
-        Matrix4f depthExtrinsicsInv;
+
         Matrix4f initialPose;
 
         if(sensor_frame == 1) {
-            depthExtrinsics = sensor.getTrajectory();
+            depthExtrinsics = Matrix4f::Identity();
             depthExtrinsicsInv = depthExtrinsics.inverse();
-            initialPose = depthExtrinsics;
             previousPose = depthExtrinsics;
         }
 
@@ -331,12 +342,9 @@ int main()
         cudaFree(vertex_validity_d);
 
         if(sensor_frame != 1){
-            Matrix<float,4,4> currPose = estimatePose(vertices, normals, predictedVertices, predictedNormals, vertex_validity,
-            previousPose, depthIntrinsics, depthWidth, depthHeight);
 
-            depthExtrinsics = currPose;
-
-            cout << depthExtrinsics << endl;
+            depthExtrinsics = estimatePose(vertices, normals, predictedVertices, predictedNormals, vertex_validity,
+            depthExtrinsics, depthIntrinsics, depthWidth, depthHeight);
 
             depthExtrinsicsInv = depthExtrinsics.inverse();
 
