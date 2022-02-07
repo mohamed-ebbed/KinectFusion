@@ -18,3 +18,9 @@ struct Vertex{
 struct Normal {
     Vector3f val;
 };
+
+
+struct Point3D{ // point in the 3D world coordinate
+    Vector3f pos;
+    Vector3f normal;
+};
