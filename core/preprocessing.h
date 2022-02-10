@@ -35,7 +35,7 @@ __global__ void computeNormals(Vertex* vertices, int* vertex_validity, Normal* n
     v2 = vk_up - vk;
 
     normals[curr_idx].val = v1.cross(v2);
-    normals[curr_idx].val = rot * normals[curr_idx].val;
+    normals[curr_idx].val = normals[curr_idx].val;
 
     normals[curr_idx].val.normalize();
     

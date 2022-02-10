@@ -13,7 +13,7 @@ using namespace std;
 using namespace cv;
 using namespace cuda;
 
-int grid_size = 256;
+int grid_size = 64;
 float min_x = -2;
 float max_x = 2;
 float min_y = -2;
@@ -21,10 +21,10 @@ float max_y = 2;
 float min_z = -2;
 float max_z = 2;
 
-float truncation = 0.1f;
+float truncation = 1.0f;
 
 float minDepth = 0.1f;
-float maxDepth = 3;
+float maxDepth = 4;
 
 float truncate(float val){
     int sgn = (val >= 0) ? 1 : -1;
@@ -381,6 +381,7 @@ int main()
         float cpp_normals[numVertices][3];
 
         Vector3f* predictedNormals = new Vector3f[depthWidth*depthHeight];
+        Vector3f* predictedNormals_curr = new Vector3f[depthWidth*depthHeight];
         Vector3f* predictedVertices = new Vector3f[depthWidth*depthHeight];
         float* phongSurface = new float[depthWidth*depthHeight];
         float* phongSurface_curr = new float[depthWidth*depthHeight];
@@ -410,6 +411,8 @@ int main()
         cudaMemcpy(phongSurface, phongSurface_d, numVertices*sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(phongSurface_curr, phongSurface_curr_d, numVertices*sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(predictedNormals, predictedNormals_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
+        cudaMemcpy(predictedNormals_curr, predictedNormals_curr_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
+
         cudaMemcpy(predictedVertices, predictedVertices_d, numVertices*sizeof(Vector3f), cudaMemcpyDeviceToHost);
         
 
@@ -420,15 +423,19 @@ int main()
         }
 
         cv::Mat normalsMap_Vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, predictedNormals);
+        cv::Mat currnormalsMap_vis = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, predictedNormals_curr);
+
         cv::Mat curr_normals = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32FC3, cpp_normals);
         cv::Mat phong_mat = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface);
         cv::Mat phong_mat_curr = cv::Mat(static_cast<int>(depthHeight), static_cast<int>(depthWidth), CV_32F, phongSurface_curr);
 
 
-        cv::imshow("Normal Map", normalsMap_Vis);
-        cv::imshow("Curr normals", curr_normals);
-        cv::imshow("Phongsurface ", phong_mat);
-        cv::imshow("Phongsurface curr ", phong_mat_curr);
+        cv::imshow("Predicted Normal Map (Fixed Camera)", normalsMap_Vis);
+        cv::imshow("Predicted Normal Map (Moving Camera)", currnormalsMap_vis);
+
+        cv::imshow("Current Normals", curr_normals);
+        cv::imshow("Predicted Phong Surface (Fixed Camera) ", phong_mat);
+        cv::imshow("Predicted Phong Surface (Moving Camera) ", phong_mat_curr);
 
         cv::imshow("FilteredDepthMap ", filt_depth_mat);
         cv::imshow("InitialDepth ", depth_mat);
