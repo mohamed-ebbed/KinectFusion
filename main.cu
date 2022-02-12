@@ -13,7 +13,7 @@ using namespace std;
 using namespace cv;
 using namespace cuda;
 
-int grid_size = 64;
+int grid_size = 256;
 float min_x = -2;
 float max_x = 2;
 float min_y = -2;
@@ -245,7 +245,7 @@ int main()
     }
 
     // Make sure this path points to the data folder
-    std::string filenameIn = "../Data/rgbd_dataset_freiburg1_xyz/";
+    std::string filenameIn = "../../Data/rgbd_dataset_freiburg1_xyz/";
     std::string filenameBaseOut = "mesh_";
 
     // load video
