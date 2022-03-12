@@ -1,5 +1,7 @@
 # KinectFusion
 
+![System output](output.png)
+
 Make sure you have intsalled Cuda Toolkit corresponding to your Nvidia Driver version. E.g. My Nvidia Driver is 470 and Cuda Toolkit is 11.4. Also, install the CuDNN library alongside with toolkit. Check the website for installation guide, it is pretty clear.
 
 Install opencv source from the Opencv (https://github.com/opencv/opencv) and Opencv-Contrib (https://github.com/opencv/opencv_contrib). Note that I installed Opencv 4.5.4

@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "dense": "cpp",
-        "eigenvalues": "cpp",
-        "ostream": "cpp",
-        "chrono": "cpp",
-        "cmath": "cpp"
-    }
-}
